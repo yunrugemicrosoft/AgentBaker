@@ -286,6 +286,32 @@ function Get-SystemDriveDiskInfo {
     }
 }
 
+function Secure-AKSVHD {
+    if ([string]::IsNullOrEmpty($secureVHDScriptUrl)) {
+        Write-Log "secureVHDScriptUrl is not set"
+        return
+    }
+
+    $pathOnly = $secureVHDScriptUrl.Split("?")[0]
+    $fileName = Split-Path $pathOnly -Leaf
+    $fullPath = [IO.Path]::Combine($env:TEMP, $fileName)
+    Write-Log "Downloading scripts to secure VHD from $secureVHDScriptUrl to $fullPath"
+    DownloadFileWithRetry -URL $secureVHDScriptUrl -Dest $fullPath
+
+    Write-Log "Starting extracting $fullPath"
+    Expand-Archive -Path $fullPath -DestinationPath $env:TEMP
+    $folderPath = [IO.Path]::Combine($env:TEMP, "SecureImage")
+
+    Write-Log "Starting executing $folderPath\AuditPolicyCommands.bat"
+    Invoke-Expression "$folderPath\AuditPolicyCommands.bat"
+
+    Write-Log "Starting executing $folderPath\SecureImage.ps1 $folderPath\RegistryValues.txt"
+    Invoke-Expression "$folderPath\SecureImage.ps1 $folderPath\RegistryValues.txt"
+
+    Write-Log "Set LocalAccountTokenFilterPolicy in registry to 0"
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name LocalAccountTokenFilterPolicy -Value 0 -Type DWORD
+}
+
 # Disable progress writers for this session to greatly speed up operations such as Invoke-WebRequest
 $ProgressPreference = 'SilentlyContinue'
 
@@ -312,6 +338,7 @@ switch ($env:ProvisioningPhase) {
         Get-ContainerImages
         Get-FilesToCacheOnVHD
         Remove-Item -Path c:\windows-vhd-configuration.ps1
+        Secure-AKSVHD
         Get-SystemDriveDiskInfo
         (New-Guid).Guid | Out-File -FilePath 'c:\vhd-id.txt'
     }

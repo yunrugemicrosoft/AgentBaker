@@ -9,6 +9,7 @@
         "client_secret": "{{env `AZURE_CLIENT_SECRET`}}",
         "container_runtime": "{{env `CONTAINER_RUNTIME`}}",
         "windows_sku": "{{env `WINDOWS_SKU`}}",
+        "secure_vhd_script_url": "{{env `SECURE_VHD_SCRIPT_URL`}}",
         "tenant_id": "{{env `AZURE_TENANT_ID`}}",
         "subscription_id": "{{env `AZURE_SUBSCRIPTION_ID`}}",
         "location": "{{env `AZURE_LOCATION`}}",
@@ -53,7 +54,8 @@
             "environment_vars": [
                 "ProvisioningPhase=1",
                 "WindowsSKU={{user `windows_sku`}}",
-                "ContainerRuntime={{user `container_runtime`}}"
+                "ContainerRuntime={{user `container_runtime`}}",
+                "SecureVHDScriptUrl={{user `secure_vhd_script_url`}}"
             ],
             "type": "powershell",
             "scripts": [
@@ -75,7 +77,8 @@
             "environment_vars": [
                 "ProvisioningPhase=2",
                 "WindowsSKU={{user `windows_sku`}}",
-                "ContainerRuntime={{user `container_runtime`}}"
+                "ContainerRuntime={{user `container_runtime`}}",
+                "SecureVHDScriptUrl={{user `secure_vhd_script_url`}}"
             ],
             "type": "powershell",
             "scripts": [

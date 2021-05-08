@@ -14,6 +14,10 @@ if (-not ($validSKU -contains $windowsSKU)) {
     throw "Unsupported windows image SKU: $windowsSKU"
 }
 
+$global:secureVHDScriptUrl = $env:SecureVHDScriptUrl
+$secureVHDScriptUrlPathOnly = $secureVHDScriptUrl.Split("?")[0]
+Write-Output "secureVHDScriptUrl without the shared access signatures is $secureVHDScriptUrlPathOnly"
+
 # Windows Server 2019 update history can be found at https://support.microsoft.com/en-us/help/4464619
 # then you can get download links by searching for specific KBs at http://www.catalog.update.microsoft.com/home.aspx
 #

@@ -35,6 +35,7 @@ steps:
       -e BUILD_NUMBER=$(Build.BuildNumber) \
       -e CONTAINER_RUNTIME=$(CONTAINER_RUNTIME) \
       -e WINDOWS_SKU=$(WINDOWS_SKU) \
+      -e SECURE_VHD_SCRIPT_URL=${SECURE_VHD_SCRIPT_URL} \
       -e OS_TYPE="Windows" \
       -e MODE=$(MODE) \
       -e SIG_GALLERY_NAME=${SIG_GALLERY_NAME} \
@@ -57,6 +58,7 @@ steps:
       -e AZURE_LOCATION=${BUILD_AZURE_LOCATION} \
       -e CONTAINER_RUNTIME=$(CONTAINER_RUNTIME) \
       -e WINDOWS_SKU=$(WINDOWS_SKU) \
+      -e SECURE_VHD_SCRIPT_URL=${SECURE_VHD_SCRIPT_URL} \
       -e OS_TYPE="Windows" \
       -e MODE=$(MODE) \
       -e VHD_DEBUG=${VHD_DEBUG} \

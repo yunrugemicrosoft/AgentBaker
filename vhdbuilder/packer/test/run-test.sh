@@ -121,6 +121,8 @@ else
     --scripts @$SCRIPT_PATH \
     --output json
 
+  # SECURE_VHD_SCRIPT_URL contains & and Powershell is splitting at the & and treating it as a new command
+  # Reference: https://github.com/Azure/azure-cli/issues/9536
   SCRIPT_PATH="$CDIR/$WIN_SCRIPT_PATH"
   echo "Run $SCRIPT_PATH"
   ret=$(az vm run-command invoke --command-id RunPowerShellScript \
@@ -128,7 +130,7 @@ else
     --resource-group $RESOURCE_GROUP_NAME \
     --scripts @$SCRIPT_PATH \
     --output json \
-    --parameters "containerRuntime=${CONTAINER_RUNTIME}" "windowsSKU=${WINDOWS_SKU}")
+    --parameters "containerRuntime=${CONTAINER_RUNTIME}" "windowsSKU=${WINDOWS_SKU}" "secureVHDScriptURL=\"${SECURE_VHD_SCRIPT_URL}\"")
   # An example of failed run-command output:
   # {
   #   "value": [

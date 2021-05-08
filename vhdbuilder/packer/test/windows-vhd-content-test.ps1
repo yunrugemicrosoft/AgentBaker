@@ -7,12 +7,14 @@
 
 param (
     $containerRuntime,
-    $windowsSKU
+    $windowsSKU,
+    $secureVHDScriptURL
 )
 
 # We use parameters for test script so we set environment variables before importing c:\windows-vhd-configuration.ps1 to reuse it
 $env:ContainerRuntime=$containerRuntime
 $env:WindowsSKU=$windowsSKU
+$env:SecureVHDScriptURL=$secureVHDScriptURL
 
 . c:\windows-vhd-configuration.ps1
 
@@ -145,6 +147,16 @@ function Test-RegistryAdded {
             Write-Error "The registry for SMB Resolution Fix for containerD is not added"
             exit 1
         }
+    }
+    if (![string]::IsNullOrEmpty($secureVHDScriptURL)) {
+        $result=(Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name LocalAccountTokenFilterPolicy)
+        if ($result.LocalAccountTokenFilterPolicy -eq 0) {
+            Write-Output "The registry for securing AKS VHD is added"
+        } else {
+            Write-Error "The registry for securing AKS VHD is not added"
+            exit 1
+        }
+
     }
 }
 
