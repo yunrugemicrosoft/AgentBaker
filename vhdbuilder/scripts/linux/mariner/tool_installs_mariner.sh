@@ -52,7 +52,9 @@ enableDNFAutomatic() {
     # At 8:000:00 UTC check if a reboot-required package was installed
     # Touch /var/run/reboot-required if a reboot required pacakge was installed.
     # This helps avoid a Mariner specific reboot check command in kured.
-    systemctlEnableAndStart check-restart.timer || exit $ERR_SYSTEMCTL_START_FAIL
+    if [[ $OS_VERSION != "2.0" ]]; then
+        systemctlEnableAndStart check-restart.timer || exit $ERR_SYSTEMCTL_START_FAIL
+    fi
 }
 
 # There are several issues in default file permissions when trying to run AMA and ASA extensions.
