@@ -1,8 +1,5 @@
 #!/bin/bash -eux
 
-sed -i "/HostkeyAlgorithms +ssh-rsa/d" /etc/ssh/sshd_config
-sed -i "/PubkeyAcceptedAlgorithms +ssh-rsa/d" /etc/ssh/sshd_config
-
 # Cleanup packer SSH key and machine ID generated for this boot
 rm -f /root/.ssh/authorized_keys
 rm -f /home/packer/.ssh/authorized_keys
