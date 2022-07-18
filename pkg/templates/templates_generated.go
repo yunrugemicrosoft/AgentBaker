@@ -6157,7 +6157,7 @@ $inputFile = '%SYSTEMDRIVE%\AzureData\CustomData.bin';
 $outputFile = '%SYSTEMDRIVE%\AzureData\CustomDataSetupScript.ps1';
 Copy-Item $inputFile $outputFile;
 Invoke-Expression('{0} {1}' -f $outputFile, $arguments);
-\" >> %SYSTEMDRIVE%\AzureData\CustomDataSetupScript.log 2>&1; $code=(Get-Content %SYSTEMDRIVE%\AzureData\CSEResult.log); exit $code`)
+\" >> %SYSTEMDRIVE%\AzureData\CustomDataSetupScript.log 2>&1; $code=(Get-Content %SYSTEMDRIVE%\AzureData\CSEResult.log); if ($code -ne "0") { Write-Host "Uploading failed CSE logs"; Copy-Item %SYSTEMDRIVE%\AzureData\CustomDataSetupScript.log %TEMP%\CustomDataSetupScript.log; Compress-Archive %TEMP%\CustomDataSetupScript.log %TEMP%\WindowsAKSCSElogs.zip; %SYSTEMDRIVE%\AzureData\windows\sendlogs.ps1 -Path %TEMP%\WindowsAKSCSElogs.zip; }; exit $code`)
 
 func windowsCsecmdPs1Bytes() ([]byte, error) {
 	return _windowsCsecmdPs1, nil
@@ -6732,9 +6732,12 @@ var _windowsSendlogsPs1 = []byte(`<#
 [CmdletBinding()]
 param(
     [string]
-    [ValidateScript({Test-Path $_})]
     $Path
 )
+
+if (!(Test-Path $Path)) {
+    return
+}
 
 $GoalStateArgs = @{
     "Method"="Get";
