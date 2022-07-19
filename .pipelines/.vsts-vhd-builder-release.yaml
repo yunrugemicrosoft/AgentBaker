@@ -485,7 +485,7 @@ stages:
             echo '##vso[task.setvariable variable=OS_SKU]Ubuntu'
             echo '##vso[task.setvariable variable=OS_VERSION]22.04'
             echo '##vso[task.setvariable variable=IMG_PUBLISHER]Canonical'
-            echo '##vso[task.setvariable variable=IMG_OFFER]UbuntuServer'
+            echo '##vso[task.setvariable variable=IMG_OFFER]0001-com-ubuntu-server-jammy'
             echo '##vso[task.setvariable variable=IMG_SKU]22_04-lts-arm64'
             echo '##vso[task.setvariable variable=HYPERV_GENERATION]V2'
             echo '##vso[task.setvariable variable=AZURE_LOCATION]westus2'
