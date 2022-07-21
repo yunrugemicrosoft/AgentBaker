@@ -106,7 +106,7 @@ elif [[ ${ENABLE_FIPS,,} == "true" ]]; then
   exit 1
 fi
 
-if [[ ${UBUNTU_RELEASE} == "18.04" || ${UBUNTU_RELEASE} == "20.04" ]]; then
+if [[ ${UBUNTU_RELEASE} == "18.04" || ${UBUNTU_RELEASE} == "22.04" ]]; then
   overrideNetworkConfig || exit 1
   disableNtpAndTimesyncdInstallChrony || exit 1
 fi
@@ -137,7 +137,7 @@ if [[ ${CONTAINER_RUNTIME:-""} == "containerd" ]]; then
     if [[ ${UBUNTU_RELEASE} == "22.04" && ${containerd_version} == "1.4.13" ]]; then
       continue
     fi
-    
+
     downloadContainerdFromVersion ${containerd_version} ${containerd_patch_version}
     echo "  - [cached] containerd v${containerd_version}-${containerd_patch_version}" >> ${VHD_LOGS_FILEPATH}
   done
