@@ -15,7 +15,6 @@
         "vm_size": "{{env `AZURE_VM_SIZE`}}",
         "windows_image_sku": "{{env `WINDOWS_IMAGE_SKU`}}",
         "windows_image_version": "{{env `WINDOWS_IMAGE_VERSION`}}",
-        "vnet_resource_group_name": "{{env `VNET_RESOURCE_GROUP_NAME`}}",
         "windows_patch_url": "{{env `WINDOWS_PATCH_URL`}}"
     },
     "builders": [
@@ -48,11 +47,7 @@
                 "now": "{{user `create_time`}}",
                 "createdBy": "aks-vhd-pipeline",
                 "SkipASMAzSecPack": "True"
-            },
-            "virtual_network_resource_group_name": "{{user `vnet_resource_group_name`}}",
-            "virtual_network_name": "vnet",
-            "virtual_network_subnet_name": "subnet",
-            "private_virtual_network_with_public_ip": "true"
+            }
         }
     ],
     "provisioners": [

@@ -13,15 +13,6 @@ if [[ -n "$PKR_RG_NAME" ]]; then
   fi
 fi
 
-#clean up the vnet resource group for Windows
-if [ -n "${VNET_RESOURCE_GROUP_NAME}" ]; then
-  id=$(az group show --name ${VNET_RESOURCE_GROUP_NAME} | jq .id)
-  if [ -n "$id" ]; then
-    echo "Deleting packer resource group ${VNET_RESOURCE_GROUP_NAME}"
-    az group delete --name ${VNET_RESOURCE_GROUP_NAME} --yes --no-wait
-  fi
-fi
-
 #clean up managed image
 if [[ -n "$AZURE_RESOURCE_GROUP_NAME" && -n "$IMAGE_NAME" ]]; then
   if [[ "$MODE" != "default" ]]; then
