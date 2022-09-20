@@ -54,6 +54,19 @@ function Start-Job-To-Expected-State {
     }
 }
 
+function Get-RemoteFileSize {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Position=0, Mandatory=$true)]
+        [string]$remoteURL
+    )
+    $remoteFileSize = (Invoke-WebRequest $URL -UseBasicParsing -Method Head).Headers.'Content-Length'
+    if ($remoteFileSize -and ($remoteFileSize.Count -ge 1)) {
+        return [Int64]$remoteFileSize[0]
+    }
+    return 0
+}
+
 function Test-FilesToCacheOnVHD
 {
     $invalidFiles = @()
@@ -95,7 +108,7 @@ function Test-FilesToCacheOnVHD
                 continue
             }
 
-            $remoteFileSize = (Invoke-WebRequest $URL -UseBasicParsing -Method Head).Headers.'Content-Length'
+            $remoteFileSize = Get-RemoteFileSize $URL # (Invoke-WebRequest $URL -UseBasicParsing -Method Head).Headers.'Content-Length'
             $localFileSize = (Get-Item $dest).length
             if ($localFileSize -ne $remoteFileSize) {
                 Write-Error "$dest : Local file size is $localFileSize but remote file size is $remoteFileSize"
@@ -109,7 +122,7 @@ function Test-FilesToCacheOnVHD
                 $mcURL = $URL.replace("https://acs-mirror.azureedge.net/", "https://kubernetesartifacts.blob.core.chinacloudapi.cn/")
                 Write-Host "Validating: $mcURL"
                 try {
-                    $remoteFileSize = (Invoke-WebRequest $mcURL -UseBasicParsing -Method Head).Headers.'Content-Length'
+                    $remoteFileSize = Get-RemoteFileSize $URL # (Invoke-WebRequest $mcURL -UseBasicParsing -Method Head).Headers.'Content-Length'
                     if ($localFileSize -ne $remoteFileSize) {
                         $excludeSizeComparisionList = @("calico-windows", "azure-vnet-cni-singletenancy-windows-amd64", "azure-vnet-cni-singletenancy-swift-windows-amd64")
 
