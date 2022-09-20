@@ -43,6 +43,8 @@ if [ "$MODE" == "default" ]; then
     --resource-group $RESOURCE_GROUP_NAME \
     --attach-os-disk $DISK_NAME \
     --os-type $OS_TYPE \
+    --admin-username "azureuser" \
+    --admin-password "Shiqian8Windows@AKS" \
     --public-ip-address ""
 else 
   if [ "$MODE" == "sigMode" ]; then
