@@ -58,6 +58,22 @@ EOF
     set -x
 }
 
+addMarinerNvidiaRepo() {
+    MARINER_NVIDIA_REPO_FILEPATH="/etc/yum.repos.d/mariner-nvidia.repo"
+    touch "${MARINER_NVIDIA_REPO_FILEPATH}"
+    cat << EOF > "${MARINER_NVIDIA_REPO_FILEPATH}"
+[mariner-official-nvidia]
+name=CBL-Mariner Official Nvidia 2.0 x86_64
+baseurl=https://packages.microsoft.com/cbl-mariner/2.0/prod/nvidia/x86_64
+gpgkey=file:///etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY file:///etc/pki/rpm-gpg/MICROSOFT-METADATA-GPG-KEY
+gpgcheck=1
+repo_gpgcheck=1
+enabled=1
+skip_if_unavailable=True
+sslverify=1
+EOF
+}
+
 downloadGPUDrivers() {
     # uname -r in Mariner will return %{version}-%{release}.%{mariner_version_postfix}
     # Need to process the return value of "uname -r" to get the %{version} value
