@@ -18,7 +18,7 @@ configureHTTPProxyCA() {
 }
 
 configureCustomCaCertificate() {
-    update-ca-certificates || exit $ERR_UPDATE_CA_CERTS
+    systemctl restart update_certs.service || exit $ERR_UPDATE_CA_CERTS
 }
 
 
@@ -297,10 +297,8 @@ configGPUDrivers() {
             docker rmi $NVIDIA_DRIVER_IMAGE:$NVIDIA_DRIVER_IMAGE_TAG
         fi
     elif [[ $OS == $MARINER_OS_NAME ]]; then
-        addMarinerNvidiaRepo
         downloadGPUDrivers
         installNvidiaContainerRuntime
-        installNvidiaDocker
     else 
         echo "os $OS not supported at this time. skipping configGPUDrivers"
         exit 1

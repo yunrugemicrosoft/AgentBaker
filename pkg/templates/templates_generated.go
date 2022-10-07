@@ -72,6 +72,7 @@
 // windows/kuberneteswindowssetup.ps1
 // windows/sendlogs.ps1
 // windows/windowscsehelper.ps1
+// windows/windowscsehelper.tests.ps1
 package templates
 
 import (
@@ -659,9 +660,9 @@ configureHTTPProxyCA() {
 
 configureCustomCaCertificate() {
     {{- range $i, $cert := GetCustomCATrustConfigCerts}}
-    wait_for_file 1200 1 /usr/local/share/ca-certificates/00000000000000cert{{$i}}.crt || exit $ERR_FILE_WATCH_TIMEOUT
+    wait_for_file 1200 1 /opt/certs/00000000000000cert{{$i}}.crt || exit $ERR_FILE_WATCH_TIMEOUT
     {{- end}}
-    update-ca-certificates || exit $ERR_UPDATE_CA_CERTS
+    systemctl restart update_certs.service || exit $ERR_UPDATE_CA_CERTS
 }
 
 
@@ -1057,10 +1058,8 @@ configGPUDrivers() {
             docker rmi $NVIDIA_DRIVER_IMAGE:$NVIDIA_DRIVER_IMAGE_TAG
         fi
     elif [[ $OS == $MARINER_OS_NAME ]]; then
-        addMarinerNvidiaRepo
         downloadGPUDrivers
         installNvidiaContainerRuntime
-        installNvidiaDocker
     else 
         echo "os $OS not supported at this time. skipping configGPUDrivers"
         exit 1
@@ -1239,7 +1238,7 @@ export GPU_DEST=/usr/local/nvidia
 NVIDIA_DOCKER_VERSION=2.8.0-1
 DOCKER_VERSION=1.13.1-1
 NVIDIA_CONTAINER_RUNTIME_VERSION="3.6.0"
-export NVIDIA_DRIVER_IMAGE_SHA="sha-a6e85c"
+export NVIDIA_DRIVER_IMAGE_SHA="sha-118f86"
 export NVIDIA_DRIVER_IMAGE_TAG="${GPU_DV}-${NVIDIA_DRIVER_IMAGE_SHA}"
 export NVIDIA_DRIVER_IMAGE="mcr.microsoft.com/aks/aks-gpu"
 export CTR_GPU_INSTALL_CMD="ctr run --privileged --rm --net-host --with-ns pid:/proc/1/ns/pid --mount type=bind,src=/opt/gpu,dst=/mnt/gpu,options=rbind --mount type=bind,src=/opt/actions,dst=/mnt/actions,options=rbind"
@@ -1979,17 +1978,6 @@ fi
 
 echo $(date),$(hostname), startcustomscript>>/opt/m
 
-{{- if ShouldConfigureHTTPProxyCA}}
-configureHTTPProxyCA
-configureEtcEnvironment
-{{- end}}
-
-{{- if ShouldConfigureCustomCATrust}}
-configureCustomCaCertificate
-{{- end}}
-
-{{GetOutboundCommand}}
-
 for i in $(seq 1 3600); do
     if [ -s {{GetCSEHelpersScriptFilepath}} ]; then
         grep -Fq '#HELPERSEOF' {{GetCSEHelpersScriptFilepath}} && break
@@ -2014,6 +2002,17 @@ source {{GetCSEInstallScriptDistroFilepath}}
 
 wait_for_file 3600 1 {{GetCSEConfigScriptFilepath}} || exit $ERR_FILE_WATCH_TIMEOUT
 source {{GetCSEConfigScriptFilepath}}
+
+{{- if ShouldConfigureHTTPProxyCA}}
+configureHTTPProxyCA || exit $ERR_UPDATE_CA_CERTS
+configureEtcEnvironment
+{{- end}}
+
+{{- if ShouldConfigureCustomCATrust}}
+configureCustomCaCertificate || $ERR_UPDATE_CA_CERTS
+{{- end}}
+
+{{GetOutboundCommand}}
 
 # Bring in OS-related vars
 source /etc/os-release
@@ -3427,15 +3426,13 @@ installDeps() {
       fi
     done
 
-    # install additional apparmor deps for 2.0
-    # Test only: remove OS_VERSION check
-    for dnf_package in apparmor-parser libapparmor; do
+    # install additional apparmor deps for 2.0; additionally, install kernel-headers by default for 2.0 and moving forward.
+    for dnf_package in apparmor-parser libapparmor kernel-headers; do
       if ! dnf_install 30 1 600 $dnf_package; then
         exit $ERR_APT_INSTALL_TIMEOUT
       fi
     done
 
-    # Test only: manually add additional sysctl configs
     SYSCTL_CONFIG_DEST="/etc/sysctl.d/60-CIS.conf"
     touch "${SYSCTL_CONFIG_DEST}"
     cat << EOF > "${SYSCTL_CONFIG_DEST}"
@@ -3472,44 +3469,26 @@ EOF
     set -x
 }
 
-addMarinerNvidiaRepo() {
-    MARINER_NVIDIA_REPO_FILEPATH="/etc/yum.repos.d/mariner-nvidia.repo"
-    touch "${MARINER_NVIDIA_REPO_FILEPATH}"
-    cat << EOF > "${MARINER_NVIDIA_REPO_FILEPATH}"
-[mariner-official-nvidia]
-name=CBL-Mariner Official Nvidia 2.0 x86_64
-baseurl=https://packages.microsoft.com/cbl-mariner/2.0/prod/nvidia/x86_64
-gpgkey=file:///etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY file:///etc/pki/rpm-gpg/MICROSOFT-METADATA-GPG-KEY
-gpgcheck=1
-repo_gpgcheck=1
-enabled=1
-skip_if_unavailable=True
-sslverify=1
-EOF
-    set -x
-}
-
 downloadGPUDrivers() {
-    #if ! dnf_install 30 1 600 cuda; then
-    #  exit $ERR_APT_INSTALL_TIMEOUT
-    #fi
+    # uname -r in Mariner will return %{version}-%{release}.%{mariner_version_postfix}
+    # Need to process the return value of "uname -r" to get the %{version} value
+    KERNEL_VERSION=$(cut -d - -f 1 <<< "$(uname -r)")
+    CUDA_VERSION="*_${KERNEL_VERSION}*"
 
-    # Test using the preview cuda driver for now
-    tdnf -y install https://packages.microsoft.com/cbl-mariner/2.0/preview/NVIDIA/x86_64/cuda-510.47.03-3_5.15.57.1.cm2.x86_64.rpm
+    if ! dnf_install 30 1 600 cuda-${CUDA_VERSION}; then
+      exit $ERR_APT_INSTALL_TIMEOUT
+    fi
 }
 
 installNvidiaContainerRuntime() {
-    for nvidia_package in nvidia-container-runtime nvidia-container-toolkit libnvidia-container-tools libnvidia-container1; do
+    MARINER_NVIDIA_CONTAINER_RUNTIME_VERSION="3.11.0"
+    MARINER_NVIDIA_CONTAINER_TOOLKIT_VERSION="1.11.0"
+    
+    for nvidia_package in nvidia-container-runtime-${MARINER_NVIDIA_CONTAINER_RUNTIME_VERSION} nvidia-container-toolkit-${MARINER_NVIDIA_CONTAINER_TOOLKIT_VERSION} libnvidia-container-tools-${MARINER_NVIDIA_CONTAINER_TOOLKIT_VERSION} libnvidia-container1-${MARINER_NVIDIA_CONTAINER_TOOLKIT_VERSION}; do
       if ! dnf_install 30 1 600 $nvidia_package; then
         exit $ERR_APT_INSTALL_TIMEOUT
       fi
     done
-}
-
-installNvidiaDocker() {
-    if ! dnf_install 30 1 600 nvidia-docker2; then
-      exit $ERR_APT_INSTALL_TIMEOUT
-    fi
 }
 
 installSGXDrivers() {
@@ -5454,7 +5433,7 @@ write_files:
 {{- if ShouldConfigureCustomCATrust}}
 {{range $i, $cert := GetCustomCATrustConfigCerts}}
 {{/* adding a prefix made of zeros to match removal logic used by custom ca trust pod, which handles old cert removal */}}
-- path: /usr/local/share/ca-certificates/00000000000000cert{{$i}}.crt
+- path: /opt/certs/00000000000000cert{{$i}}.crt
   permissions: "0644"
   owner: root
   content: |
@@ -5645,6 +5624,10 @@ write_files:
           runtime_type = "io.containerd.runc.v2"
         [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.untrusted.options]
           BinaryName = "/usr/bin/runc"
+        {{- end}}
+        {{- if IsKata }}
+        [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.kata]
+          runtime_type = "io.containerd.kata.v2"
         {{- end}}
       {{- if and (IsKubenet) (not HasCalicoNetworkPolicy) }}
       [plugins."io.containerd.grpc.v1.cri".cni]
@@ -6300,6 +6283,10 @@ $fipsEnabled = [System.Convert]::ToBoolean("{{ FIPSEnabled }}")
 # HNS remediator
 $global:HNSRemediatorIntervalInMinutes = [System.Convert]::ToUInt32("{{GetHnsRemediatorIntervalInMinutes}}");
 
+if ($useContainerD) {
+    $global:HNSModule = [Io.path]::Combine("$global:KubeDir", "hns.v2.psm1")
+}
+
 # Extract cse helper script from ZIP
 [io.file]::WriteAllBytes("scripts.zip", [System.Convert]::FromBase64String($zippedFiles))
 Expand-Archive scripts.zip -DestinationPath "C:\\AzureData\\"
@@ -6312,7 +6299,7 @@ try
 {
     Write-Log ".\CustomDataSetupScript.ps1 -MasterIP $MasterIP -KubeDnsServiceIp $KubeDnsServiceIp -MasterFQDNPrefix $MasterFQDNPrefix -Location $Location -AADClientId $AADClientId -NetworkAPIVersion $NetworkAPIVersion -TargetEnvironment $TargetEnvironment"
 
-    $WindowsCSEScriptsPackage = "aks-windows-cse-scripts-v0.0.14.zip"
+    $WindowsCSEScriptsPackage = "aks-windows-cse-scripts-v0.0.16.zip"
     Write-Log "CSEScriptsPackageUrl is $global:CSEScriptsPackageUrl"
     Write-Log "WindowsCSEScriptsPackage is $WindowsCSEScriptsPackage"
     # Old AKS RP sets the full URL (https://acs-mirror.azureedge.net/aks/windows/cse/aks-windows-cse-scripts-v0.0.11.zip) in CSEScriptsPackageUrl
@@ -6744,6 +6731,12 @@ $global:WINDOWS_CSE_ERROR_PULL_PAUSE_IMAGE=43
 $global:WINDOWS_CSE_ERROR_BUILD_TAG_PAUSE_IMAGE=44
 $global:WINDOWS_CSE_ERROR_CONTAINERD_BINARY_EXIST=45
 
+# NOTE: KubernetesVersion does not contain "v"
+$global:MinimalKubernetesVersionWithLatestContainerd = "1.30.0" # Will change it to the correct version when we support new Windows containerd version
+$global:StableContainerdPackage = "v0.0.47/binaries/containerd-v0.0.47-windows-amd64.tar.gz"
+# The containerd package name may be changed in future
+$global:LatestContainerdPackage = "v1.0.46/binaries/containerd-v1.0.46-windows-amd64.tar.gz" # It does not exist and is only for test for now
+
 # This filter removes null characters (\0) which are captured in nssm.exe output when logged through powershell
 filter RemoveNulls { $_ -replace '\0', '' }
 
@@ -6945,7 +6938,43 @@ function Get-WindowsVersion {
             Set-ExitCode -ExitCode $global:WINDOWS_CSE_ERROR_NOT_FOUND_BUILD_NUMBER -ErrorMessage "Failed to find the windows build number: $buildNumber"
         }
     }
-}`)
+}
+
+function Install-Containerd-Based-On-Kubernetes-Version {
+  Param(
+    [Parameter(Mandatory = $true)][string]
+    $ContainerdUrl,
+    [Parameter(Mandatory = $true)][string]
+    $CNIBinDir,
+    [Parameter(Mandatory = $true)][string]
+    $CNIConfDir,
+    [Parameter(Mandatory = $true)][string]
+    $KubeDir,
+    [Parameter(Mandatory = $true)][string]
+    $KubernetesVersion
+  )
+
+  # In the past, $global:ContainerdUrl is a full URL to download Windows containerd package.
+  # Example: "https://acs-mirror.azureedge.net/containerd/windows/v0.0.46/binaries/containerd-v0.0.46-windows-amd64.tar.gz"
+  # To support multiple containerd versions, we only set the endpoint in $global:ContainerdUrl.
+  # Example: "https://acs-mirror.azureedge.net/containerd/windows/"
+  # We only set containerd package based on kubernetes version when $global:ContainerdUrl ends with "/" so we support:
+  #   1. Current behavior to set the full URL
+  #   2. Setting containerd package in toggle for test purpose or hotfix
+  if ($ContainerdUrl.EndsWith("/")) {
+    Write-Log "ContainerdURL is $ContainerdUrl"
+    $containerdPackage=$global:StableContainerdPackage
+    if (([version]$KubernetesVersion).CompareTo([version]$global:MinimalKubernetesVersionWithLatestContainerd) -ge 0) {
+      $containerdPackage=$global:LatestContainerdPackage
+      Write-Log "Kubernetes version $KubernetesVersion is greater than or equal to $global:MinimalKubernetesVersionWithLatestContainerd so the latest containerd version $containerdPackage is used"
+    } else {
+      Write-Log "Kubernetes version $KubernetesVersion is less than $global:MinimalKubernetesVersionWithLatestContainerd so the stable containerd version $containerdPackage is used"
+    }
+    $ContainerdUrl = $ContainerdUrl + $containerdPackage
+  }
+  Install-Containerd -ContainerdUrl $ContainerdUrl -CNIBinDir $CNIBinDir -CNIConfDir $CNIConfDir -KubeDir $KubeDir
+}
+`)
 
 func windowsWindowscsehelperPs1Bytes() ([]byte, error) {
 	return _windowsWindowscsehelperPs1, nil
@@ -6958,6 +6987,68 @@ func windowsWindowscsehelperPs1() (*asset, error) {
 	}
 
 	info := bindataFileInfo{name: "windows/windowscsehelper.ps1", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _windowsWindowscsehelperTestsPs1 = []byte(`BeforeAll {
+  . $PSScriptRoot\..\..\..\parts\windows\windowscsehelper.ps1
+  . $PSCommandPath.Replace('.tests.ps1','.ps1')
+}
+
+Describe 'Install-Containerd-Based-On-Kubernetes-Version' {
+  BeforeAll{
+      Mock Install-Containerd -MockWith {
+        Param(
+          [Parameter(Mandatory = $true)][string]
+          $ContainerdUrl,
+          [Parameter(Mandatory = $true)][string]
+          $CNIBinDir,
+          [Parameter(Mandatory = $true)][string]
+          $CNIConfDir,
+          [Parameter(Mandatory = $true)][string]
+          $KubeDir
+        )
+        Write-Host $ContainerdUrl
+    } -Verifiable
+  }
+
+  It 'k8s version is less than MinimalKubernetesVersionWithLatestContainerd' {
+    $expectedURL = "https://acs-mirror.azureedge.net/containerd/windows/v0.0.47/binaries/containerd-v0.0.47-windows-amd64.tar.gz"
+    & Install-Containerd-Based-On-Kubernetes-Version -ContainerdUrl "https://acs-mirror.azureedge.net/containerd/windows/" -KubernetesVersion "1.24.0" -CNIBinDir "cniBinPath" -CNIConfDir "cniConfigPath" -KubeDir "kubeDir"
+    Assert-MockCalled -CommandName "Install-Containerd" -Exactly -Times 1 -ParameterFilter { $ContainerdUrl -eq $expectedURL }
+  }
+
+  It 'k8s version is equal to MinimalKubernetesVersionWithLatestContainerd' {
+    $expectedURL = "https://acs-mirror.azureedge.net/containerd/windows/v1.0.46/binaries/containerd-v1.0.46-windows-amd64.tar.gz"
+    & Install-Containerd-Based-On-Kubernetes-Version -ContainerdUrl "https://acs-mirror.azureedge.net/containerd/windows/" -KubernetesVersion "1.30.0" -CNIBinDir "cniBinPath" -CNIConfDir "cniConfigPath" -KubeDir "kubeDir"
+    Assert-MockCalled -CommandName "Install-Containerd" -Exactly -Times 1 -ParameterFilter { $ContainerdUrl -eq $expectedURL }
+  }
+
+  It 'k8s version is greater than MinimalKubernetesVersionWithLatestContainerd' {
+    $expectedURL = "https://mirror.azk8s.cn/containerd/windows/v1.0.46/binaries/containerd-v1.0.46-windows-amd64.tar.gz"
+    & Install-Containerd-Based-On-Kubernetes-Version -ContainerdUrl "https://mirror.azk8s.cn/containerd/windows/" -KubernetesVersion "1.30.1" -CNIBinDir "cniBinPath" -CNIConfDir "cniConfigPath" -KubeDir "kubeDir"
+    Assert-MockCalled -CommandName "Install-Containerd" -Exactly -Times 1 -ParameterFilter { $ContainerdUrl -eq $expectedURL }
+  }
+
+  It 'full URL is set' {
+    $expectedURL = "https://privatecotnainer.com/windows-containerd-v1.2.3.tar.gz"
+    & Install-Containerd-Based-On-Kubernetes-Version -ContainerdUrl "https://privatecotnainer.com/windows-containerd-v1.2.3.tar.gz" -KubernetesVersion "1.26.1" -CNIBinDir "cniBinPath" -CNIConfDir "cniConfigPath" -KubeDir "kubeDir"
+    Assert-MockCalled -CommandName "Install-Containerd" -Exactly -Times 1 -ParameterFilter { $ContainerdUrl -eq $expectedURL }
+  }
+}`)
+
+func windowsWindowscsehelperTestsPs1Bytes() ([]byte, error) {
+	return _windowsWindowscsehelperTestsPs1, nil
+}
+
+func windowsWindowscsehelperTestsPs1() (*asset, error) {
+	bytes, err := windowsWindowscsehelperTestsPs1Bytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "windows/windowscsehelper.tests.ps1", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
 	a := &asset{bytes: bytes, info: info}
 	return a, nil
 }
@@ -7086,6 +7177,7 @@ var _bindata = map[string]func() (*asset, error){
 	"windows/kuberneteswindowssetup.ps1":                                   windowsKuberneteswindowssetupPs1,
 	"windows/sendlogs.ps1":                                                 windowsSendlogsPs1,
 	"windows/windowscsehelper.ps1":                                         windowsWindowscsehelperPs1,
+	"windows/windowscsehelper.tests.ps1":                                   windowsWindowscsehelperTestsPs1,
 }
 
 // AssetDir returns the file names below a certain
@@ -7212,6 +7304,7 @@ var _bintree = &bintree{nil, map[string]*bintree{
 		"kuberneteswindowssetup.ps1": &bintree{windowsKuberneteswindowssetupPs1, map[string]*bintree{}},
 		"sendlogs.ps1":               &bintree{windowsSendlogsPs1, map[string]*bintree{}},
 		"windowscsehelper.ps1":       &bintree{windowsWindowscsehelperPs1, map[string]*bintree{}},
+		"windowscsehelper.tests.ps1": &bintree{windowsWindowscsehelperTestsPs1, map[string]*bintree{}},
 	}},
 }}
 
