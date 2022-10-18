@@ -123,3 +123,9 @@ enableMarinerKata() {
     # dracut to generate an initrd for the nested VM using binaries from the Mariner host OS.
     systemctlEnableAndStart kata-osbuilder-generate
 }
+
+# Disable the apparmor service to prevent automated loading of default policies once
+# apparmor is disabled in the containerd config.
+disableApparmor() {
+    systemctlDisableAndStop apparmor
+}

@@ -115,6 +115,7 @@ if [[ $OS == $MARINER_OS_NAME ]]; then
     fixCBLMarinerPermissions
     addMarinerNvidiaRepo
     overrideNetworkConfig || exit 1
+    disableApparmor
     if grep -q "kata" <<< "$FEATURE_FLAGS"; then
       enableMarinerKata
     else

@@ -5571,6 +5571,9 @@ write_files:
     root = "{{GetDataDir}}"{{- end}}
     [plugins."io.containerd.grpc.v1.cri"]
       sandbox_image = "{{GetPodInfraContainerSpec}}"
+      {{- if IsMariner }}
+      disable_apparmor = true
+      {{- end}}
       [plugins."io.containerd.grpc.v1.cri".containerd]
         {{- if TeleportEnabled }}
         snapshotter = "teleportd"
