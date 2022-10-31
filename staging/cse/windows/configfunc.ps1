@@ -466,3 +466,81 @@ function CopyFileFromCache {
         Write-Log "WARNING: $FileName is missed in cached folder $global:CacheDir"
     }
 }
+
+function Create-SymbolLinkFile {
+    Param(
+        [Parameter(Mandatory = $true)][string]
+        $SrcFile,
+        [Parameter(Mandatory = $true)][string]
+        $DestFile
+    )
+    if (Test-Path $SrcFile) {
+        Write-Log "Creating symbol link $DestFile to $SrcFile"
+        New-Item -ItemType SymbolicLink -Path $DestFile -Target $SrcFile
+    } else {
+        Write-Log "SrcFile $SrcFile does not exist"
+    }
+}
+
+function Config-LogsCollector {
+    $aksLogFolder="C:\WindowsAzure\Logs\aks"
+    Create-Directory -FullPath $aksLogFolder
+
+    # Log files in C:\AzureData
+    $provisionLogFiles = @(
+        "CustomData.bin", # It should be the infra issue if it does not exist
+        "CustomDataSetupScript.ps1",
+        "CustomDataSetupScript.log"
+    )
+    $provisionLogFiles | Foreach-Object {
+        Create-SymbolLinkFile -SrcFile (Join-Path "C:\AzureData\" $_) -DestFile (Join-Path $aksLogFolder $_)
+    }
+
+    # Log files in c:\k
+    $kLogFiles = @(
+        "azure-vnet.json",
+        "azure-vnet-ipam.json",
+        "kubeclusterconfig.json",
+        "config.toml",
+        "bootstrap-config",
+        "kubelet.err.log",
+        "kubelet.log",
+        "kubeproxy.log",
+        "kubeproxy.err.log",
+        "azure-vnet-telemetry.log",
+        "azure-vnet.log",
+        "csi-proxy.log",
+        "csi-proxy.err.log",
+        "containerd.log",
+        "containerd.err.log",
+        "hnsremediator.log"
+    )
+    $kLogFiles | Foreach-Object {
+        Create-SymbolLinkFile -SrcFile (Join-Path "c:\k\" $_) -DestFile (Join-Path $aksLogFolder $_)
+    }
+
+    if ($global:WindowsCalicoPackageURL) {
+        # Log files in c:\CalicoWindows\logs
+        $calicoLogFiles = @(
+            "calico-felix.err.log",
+            "calico-felix.log",
+            "calico-node.err.log",
+            "calico-node.log"
+        )
+        $calicoLogFiles | Foreach-Object {
+            Create-SymbolLinkFile -SrcFile (Join-Path "c:\CalicoWindows\logs\" $_) -DestFile (Join-Path $aksLogFolder $_)
+        }
+    }
+
+    # Misc files
+    $miscLogFiles = @(
+        "C:\k\azurecni\netconf\10-azure.conflist",
+        "c:\ProgramData\containerd\root\panic.log",
+        "C:\windows\system32\winevt\Logs\Microsoft-AKSGMSAPlugin%4Admin.evtx",
+        "C:\windows\system32\winevt\Logs\Microsoft-Windows-Containers-CCG%4Admin.evtx"
+    )
+    $miscLogFiles | Foreach-Object {
+        $fileName = [IO.Path]::GetFileName($_)
+        Create-SymbolLinkFile -SrcFile $_ -DestFile (Join-Path $aksLogFolder $fileName)
+    }
+}
