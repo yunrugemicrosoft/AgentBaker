@@ -114,10 +114,15 @@ function Set-AzureCNIConfig
 
     if ($global:KubeproxyFeatureGates.Contains("WinDSR=true")) {
         Write-Log "Setting enableLoopbackDSR in Azure CNI conflist for WinDSR"
-        $jsonContent = [PSCustomObject]@{
-            'enableLoopbackDSR' = $True
+        # Add {enableLoopbackDSR:true} if windowsSettings exists, otherwise, add {windowsSettings:{enableLoopbackDSR:true}}
+        if (Get-Member -InputObject $configJson.plugins[0] -name "windowsSettings" -Membertype Properties) {
+            $configJson.plugins[0].windowsSettings | Add-Member -Name "enableLoopbackDSR" -Value $True -MemberType NoteProperty
+        } else {
+            $jsonContent = [PSCustomObject]@{
+                'enableLoopbackDSR' = $True
+            }
+            $configJson.plugins[0] | Add-Member -Name "windowsSettings" -Value $jsonContent -MemberType NoteProperty
         }
-        $configJson.plugins[0]|Add-Member -Name "windowsSettings" -Value $jsonContent -MemberType NoteProperty
 
         # $configJson.plugins[0].AdditionalArgs[1] is ROUTE. Remove ROUTE if WinDSR is enabled.
         $configJson.plugins[0].AdditionalArgs = @($configJson.plugins[0].AdditionalArgs | Where-Object { $_ -ne $configJson.plugins[0].AdditionalArgs[1] })
@@ -408,8 +413,6 @@ function New-ExternalHnsNetwork
 function Get-HnsPsm1
 {
     Param(
-        [string]
-        $HnsUrl = "https://github.com/Microsoft/SDN/raw/master/Kubernetes/windows/",
         [Parameter(Mandatory=$true)][string]
         $HNSModule
     )
@@ -417,6 +420,12 @@ function Get-HnsPsm1
     # HNSModule is C:\k\hns.psm1 when container runtime is Docker
     # HNSModule is C:\k\hns.v2.psm1 when container runtime is Containerd
     $fileName = [IO.Path]::GetFileName($HNSModule)
-    $HnsUrl = [IO.Path]::Combine($HnsUrl, $fileName)
-    DownloadFileOverHttp -Url $HnsUrl -DestinationPath "$HNSModule" -ExitCode $global:WINDOWS_CSE_ERROR_DOWNLOAD_HNS_MODULE
+    # Get-LogCollectionScripts will copy hns module file to C:\k\debug
+    $sourceFile = [IO.Path]::Combine('C:\k\debug\', $fileName)
+    try {
+        Write-Log "Copying $sourceFile to $HNSModule."
+        Copy-Item -Path $sourceFile -Destination "$HNSModule"
+    } catch {
+        Set-ExitCode -ExitCode $global:WINDOWS_CSE_ERROR_DOWNLOAD_HNS_MODULE -ErrorMessage "Failed to copy $sourceFile to $HNSModule. Error: $_"
+    }
 }

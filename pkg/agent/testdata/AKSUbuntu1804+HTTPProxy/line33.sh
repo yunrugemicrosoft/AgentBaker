@@ -58,7 +58,7 @@ source /opt/azure/containers/provision_configs.sh
 configureHTTPProxyCA || exit $ERR_UPDATE_CA_CERTS
 configureEtcEnvironment
 
-export NO_PROXY="localhost,127.0.0.1"; export HTTPS_PROXY="https://myproxy.server.com:8080/"; export http_proxy="http://myproxy.server.com:8080/"; retrycmd_if_failure() { r=$1; w=$2; t=$3; shift && shift && shift; for i in $(seq 1 $r); do timeout $t ${@}; [ $? -eq 0  ] && break || if [ $i -eq $r ]; then return 1; else sleep $w; fi; done }; ERR_OUTBOUND_CONN_FAIL=50; retrycmd_if_failure 100 1 10 curl -v --insecure --proxy-insecure https://mcr.microsoft.com/v2/ >> /var/log/azure/cluster-provision-cse-output.log 2>&1 || time curl -v --insecure --proxy-insecure https://mcr.microsoft.com/v2/ || exit $ERR_OUTBOUND_CONN_FAIL;
+export NO_PROXY="localhost,127.0.0.1"; export HTTPS_PROXY="https://myproxy.server.com:8080/"; export http_proxy="http://myproxy.server.com:8080/"; retrycmd_if_failure() { r=$1; w=$2; t=$3; shift && shift && shift; for i in $(seq 1 $r); do timeout $t ${@}; [ $? -eq 0  ] && break || if [ $i -eq $r ]; then return 1; else sleep $w; fi; done }; ERR_OUTBOUND_CONN_FAIL=50; retrycmd_if_failure 50 1 5 curl -v --insecure --proxy-insecure https://mcr.microsoft.com/v2/ >> /var/log/azure/cluster-provision-cse-output.log 2>&1 || time curl -v --insecure --proxy-insecure https://mcr.microsoft.com/v2/ || exit $ERR_OUTBOUND_CONN_FAIL;
 
 # Bring in OS-related vars
 source /etc/os-release
@@ -103,9 +103,10 @@ setupCNIDirs
 
 logs_to_events "AKS.CSE.installNetworkPlugin" installNetworkPlugin
 
-logs_to_events "AKS.CSE.installKubeletKubectlAndKubeProxy" installKubeletKubectlAndKubeProxy
+# By default, never reboot new nodes.
+REBOOTREQUIRED=false
 
-logs_to_events "AKS.CSE.ensureRPC" ensureRPC
+logs_to_events "AKS.CSE.installKubeletKubectlAndKubeProxy" installKubeletKubectlAndKubeProxy
 
 createKubeManifestDir
 
@@ -128,7 +129,6 @@ if [[ "AzurePublicCloud" == "AzureChinaCloud" ]]; then
 fi
 
 logs_to_events "AKS.CSE.ensureSysctl" ensureSysctl
-logs_to_events "AKS.CSE.ensureJournal" ensureJournal
 
 logs_to_events "AKS.CSE.ensureKubelet" ensureKubelet
 
@@ -172,8 +172,6 @@ if [[ ${ID} != "mariner" ]]; then
     /usr/bin/mandb && echo "man-db finished updates at $(date)" &
 fi
 
-# Ace: Basically the hypervisor blocks gpu reset which is required after enabling mig mode for the gpus to be usable
-REBOOTREQUIRED=false
 if $REBOOTREQUIRED; then
     echo 'reboot required, rebooting node in 1 minute'
     /bin/bash -c "shutdown -r 1 &"
@@ -187,6 +185,7 @@ else
         systemctl unmask apt-daily.service apt-daily-upgrade.service
         systemctl enable apt-daily.service apt-daily-upgrade.service
         systemctl enable apt-daily.timer apt-daily-upgrade.timer
+        systemctl restart --no-block apt-daily.timer apt-daily-upgrade.timer
         # this is the DOWNLOAD service
         # meaning we are wasting IO without even triggering an upgrade 
         # -________________-

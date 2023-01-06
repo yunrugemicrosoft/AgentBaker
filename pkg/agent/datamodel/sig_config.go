@@ -99,6 +99,7 @@ var AvailableContainerdDistros []Distro = []Distro{
 	AKSCBLMarinerV1,
 	AKSCBLMarinerV2Gen2,
 	AKSCBLMarinerV2Gen2Kata,
+	AKSCBLMarinerV2Gen2TL,
 	AKSUbuntuArm64Containerd1804Gen2,
 	AKSUbuntuArm64Containerd2204Gen2,
 	AKSUbuntuContainerd2204,
@@ -136,6 +137,7 @@ var AvailableCBLMarinerDistros []Distro = []Distro{
 	AKSCBLMarinerV2Gen2,
 	AKSCBLMarinerV2Gen2Kata,
 	AKSCBLMarinerV2Arm64Gen2,
+	AKSCBLMarinerV2Gen2TL,
 }
 
 // IsContainerdSKU returns true if distro type is containerd-enabled
@@ -241,13 +243,16 @@ const (
 )
 
 const (
-	LinuxSIGImageVersion string = "2022.11.02"
+	LinuxSIGImageVersion string = "2022.12.19"
 
 	// DO NOT MODIFY: used for freezing linux images with docker
 	FrozenLinuxSIGImageVersionForDocker string = "2022.08.29"
 
-	Ubuntu2204TLSIGImageVersion string = "2022.10.13"
+	// pinned due to app armor issue
+	CBLMarinerV1Gen1SIGImageVersion string = "2022.11.12"
 
+	Ubuntu2204TLSIGImageVersion       string = "2022.10.13"
+	CBLMarinerV2Gen2TLSIGImageVersion string = "2022.11.29"
 	// We do not use AKS Windows image versions in AgentBaker. These fake values are only used for unit tests
 	Windows2019SIGImageVersion string = "17763.2019.221114"
 	Windows2022SIGImageVersion string = "20348.2022.221114"
@@ -412,7 +417,7 @@ var (
 		ResourceGroup: AKSCBLMarinerResourceGroup,
 		Gallery:       AKSCBLMarinerGalleryName,
 		Definition:    "V1",
-		Version:       LinuxSIGImageVersion,
+		Version:       CBLMarinerV1Gen1SIGImageVersion,
 	}
 
 	SIGCBLMarinerV2ImageConfigTemplate = SigImageConfigTemplate{
@@ -434,6 +439,13 @@ var (
 		Gallery:       AKSCBLMarinerGalleryName,
 		Definition:    "V2gen2arm64",
 		Version:       LinuxSIGImageVersion,
+	}
+
+	SIGCBLMarinerV2TLImageConfigTemplate = SigImageConfigTemplate{
+		ResourceGroup: AKSCBLMarinerResourceGroup,
+		Gallery:       AKSCBLMarinerGalleryName,
+		Definition:    "V2gen2TL",
+		Version:       CBLMarinerV2Gen2TLSIGImageVersion,
 	}
 
 	SIGWindows2019ImageConfigTemplate = SigImageConfigTemplate{
@@ -494,6 +506,7 @@ func getSigCBLMarinerImageConfigMapWithOpts(opts ...SigImageConfigOpt) map[Distr
 		AKSCBLMarinerV2Gen2:      SIGCBLMarinerV2ImageConfigTemplate.WithOptions(opts...),
 		AKSCBLMarinerV2Gen2Kata:  SIGCBLMarinerV2KataImageConfigTemplate.WithOptions(opts...),
 		AKSCBLMarinerV2Arm64Gen2: SIGCBLMarinerV2Arm64ImageConfigTemplate.WithOptions(opts...),
+		AKSCBLMarinerV2Gen2TL:    SIGCBLMarinerV2TLImageConfigTemplate.WithOptions(opts...),
 	}
 }
 

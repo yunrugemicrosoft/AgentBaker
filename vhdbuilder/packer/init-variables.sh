@@ -106,16 +106,18 @@ if [[ "${MODE}" == "linuxVhdMode" ]]; then
 	# Ensure the image-definition name
 	if [[ -z "${SIG_IMAGE_NAME}" ]]; then
 		SIG_IMAGE_NAME=${OS_VERSION//./}
-		if [[ "${OS_SKU}" == "Ubuntu" ]]; then
-			if [[ "${IMG_SKU}" == "20_04-lts-cvm" ]]; then
-				SIG_IMAGE_NAME=${SIG_IMAGE_NAME}CVM
-			elif [[ "${ENABLE_TRUSTED_LAUNCH}" == "True" ]]; then
-				SIG_IMAGE_NAME=${SIG_IMAGE_NAME}TL
-			fi
+		if [[ "${OS_SKU}" == "Ubuntu" && "${IMG_SKU}" == "20_04-lts-cvm" ]]; then
+			SIG_IMAGE_NAME=${SIG_IMAGE_NAME}CVM
 		fi
+
 		if [[ "${OS_SKU}" == "CBLMariner" ]]; then
 			SIG_IMAGE_NAME=CBLMariner${SIG_IMAGE_NAME}
 		fi
+
+		if [[ "${ENABLE_TRUSTED_LAUNCH}" == "True" ]]; then
+			SIG_IMAGE_NAME=${SIG_IMAGE_NAME}TL
+		fi
+
 		if [[ "${HYPERV_GENERATION,,}" == "v2" && ("${OS_SKU}" == "CBLMariner" || "${OS_SKU}" == "Ubuntu") ]]; then
 			SIG_IMAGE_NAME=${SIG_IMAGE_NAME}Gen2
 		fi
@@ -227,7 +229,7 @@ if [[ "$OS_SKU" == "CBLMariner" ]]; then
 				--sku $OS_SKU \
 				--hyper-v-generation V2 \
 				--os-state generalized \
-				--description "Imported image for AKS Packer build"
+				--description "Imported image for AKS Packer build" \
 
 			echo "Creating new image-version for imported image ${IMPORTED_IMAGE_NAME}"
 			az sig image-version create \
@@ -419,7 +421,9 @@ cat <<EOF > vhdbuilder/packer/settings.json
   "windows_sigmode_source_resource_group_name": "${windows_sigmode_source_resource_group_name}",
   "windows_sigmode_source_gallery_name": "${windows_sigmode_source_gallery_name}",
   "windows_sigmode_source_image_name": "${windows_sigmode_source_image_name}",
-  "windows_sigmode_source_image_version": "${windows_sigmode_source_image_version}"
+  "windows_sigmode_source_image_version": "${windows_sigmode_source_image_version}",
+  "vnet_name": "nodesig-pool-vnet",
+  "subnet_name": "packer"
 }
 EOF
 
